@@ -192,7 +192,7 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
     private var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
     private let topSpinner = UIActivityIndicatorView(style: .medium)
 
-    /// The scroll-to-bottom button, created from the configuration's factory.
+    /// The scroll-to-bottom button, created from the configuration's view builder closure.
     private var scrollToBottomButton: (any ScrollToBottomProviding)?
 
     // MARK: - Init

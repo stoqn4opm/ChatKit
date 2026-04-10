@@ -26,16 +26,16 @@ final class SampleChatViewController: UIViewController {
         title = "Chat"
         navigationItem.largeTitleDisplayMode = .never
 
-        let factory = ChatViewBuilder.standard()
+        let builder = ChatViewBuilder.standard()
         // To add a custom message type in your app:
-        //   factory.prependRenderer(AudioMessageRenderer())
-        //   factory.prependSender(AudioMessageSender())
+        //   builder.prependRenderer(AudioMessageRenderer())
+        //   builder.prependSender(AudioMessageSender())
 
-        let built = factory.buildChatView()
+        let built = builder.buildChatView()
         chatView = built.view
         rendererChain = built.renderers
 
-        senderChain = factory.buildSenderChain(subject: chatService.updateSubject)
+        senderChain = builder.buildSenderChain(subject: chatService.updateSubject)
 
         setupChatView()
         setupInputBar()

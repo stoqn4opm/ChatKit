@@ -14,11 +14,11 @@ import Foundation
 ///     public let sender: MessageSender? = AudioMessageSender()
 /// }
 ///
-/// let factory = ChatViewBuilder.standard()
+/// let builder = ChatViewBuilder.standard()
 ///     .register(AudioMessagePlugin())
 ///
 /// // Later, to remove it:
-/// factory.unregister(AudioMessagePlugin.self)
+/// builder.unregister(AudioMessagePlugin.self)
 /// ```
 ///
 /// Display-only types (e.g. date separators, typing indicators) return

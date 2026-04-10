@@ -103,7 +103,7 @@ ChatKit/
 │   ├── Sending/              # MessageSender protocol, SenderChain
 │   ├── BuiltIn/              # Built-in plugins (Text, Image, Symbol, Reply, Forwarded, DateSeparator, TypingIndicator)
 │   ├── ImageLoading/         # ImageLoading/ImageCaching protocols + defaults
-│   ├── Factory/              # ChatViewBuilder (composition root)
+│   ├── Builder/              # ChatViewBuilder (composition root)
 │   ├── ErrorHandling/        # ChatKitError, ChatKitErrorRouter
 │   ├── Views/                # AvatarView, ScrollToBottomView
 │   └── Utilities/            # ReadReceiptScheduler

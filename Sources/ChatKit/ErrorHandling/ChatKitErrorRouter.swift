@@ -24,7 +24,7 @@ public protocol ErrorRouting {
 /// ## Usage (via ChatViewBuilder)
 ///
 /// ```swift
-/// let factory = ChatViewBuilder.standard()
+/// let builder = ChatViewBuilder.standard()
 ///     .onError { error in
 ///         Logger.chatKit.error("\(error.description)")
 ///     }

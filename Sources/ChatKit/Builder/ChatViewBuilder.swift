@@ -12,17 +12,17 @@ import Combine
 ///
 /// ```swift
 /// // Use all defaults:
-/// let factory = ChatViewBuilder.standard()
+/// let builder = ChatViewBuilder.standard()
 ///
 /// // Extend with a custom type — one call registers everything:
-/// factory.register(AudioMessagePlugin(errorRouter: factory.errorRouter))
+/// builder.register(AudioMessagePlugin(errorRouter: builder.errorRouter))
 ///
 /// // Or insert at the front of the chain so it's checked first:
-/// factory.registerFirst(AudioMessagePlugin(errorRouter: factory.errorRouter))
+/// builder.registerFirst(AudioMessagePlugin(errorRouter: builder.errorRouter))
 ///
 /// // Build:
-/// let (chatView, rendererChain) = factory.buildChatView()
-/// let senderChain = factory.buildSenderChain(subject: service.updateSubject)
+/// let (chatView, rendererChain) = builder.buildChatView()
+/// let senderChain = builder.buildSenderChain(subject: service.updateSubject)
 /// ```
 public final class ChatViewBuilder {
 
@@ -45,9 +45,9 @@ public final class ChatViewBuilder {
         self.imageLoader = imageLoader
     }
 
-    // MARK: - Standard Factory
+    // MARK: - Standard Builder
 
-    /// Creates a factory pre-loaded with all built-in message types.
+    /// Creates a builder pre-loaded with all built-in message types.
     ///
     /// Plugin registration order (most specific → most generic):
     /// 1. ReplyMessagePlugin
@@ -108,9 +108,9 @@ public final class ChatViewBuilder {
     ///
     /// Useful for replacing a built-in message type with a custom one:
     /// ```swift
-    /// factory
+    /// builder
     ///     .unregister(TextMessagePlugin.self)
-    ///     .register(MyCustomTextMessagePlugin(errorRouter: factory.errorRouter))
+    ///     .register(MyCustomTextMessagePlugin(errorRouter: builder.errorRouter))
     /// ```
     @discardableResult
     public func unregister<P: MessageTypePlugin>(_ pluginType: P.Type) -> Self {
@@ -179,14 +179,14 @@ public final class ChatViewBuilder {
     ///
     /// ```swift
     /// // Custom look at bottom-center:
-    /// let factory = ChatViewBuilder.standard()
+    /// let builder = ChatViewBuilder.standard()
     ///     .scrollToBottom(ScrollToBottomConfiguration(
     ///         position: ScrollToBottomPosition(alignment: .center),
     ///         viewFactory: { MyFancyScrollButton() }
     ///     ))
     ///
     /// // Disable the button entirely:
-    /// let factory = ChatViewBuilder.standard()
+    /// let builder = ChatViewBuilder.standard()
     ///     .scrollToBottom(nil)
     /// ```
     @discardableResult
@@ -205,7 +205,7 @@ public final class ChatViewBuilder {
     /// hard during QA builds.
     ///
     /// ```swift
-    /// let factory = ChatViewBuilder.standard()
+    /// let builder = ChatViewBuilder.standard()
     ///     .onError { error in
     ///         Logger.chatKit.error("\(error.description)")
     ///     }

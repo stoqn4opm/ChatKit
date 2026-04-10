@@ -44,7 +44,7 @@ The `ChatCollectionView<Item>` is fully generic. `ChatItem` is the concrete enum
 
 ### Composition Root: ChatViewBuilder
 
-`ChatViewBuilder` (in `Sources/ChatKit/Factory/`) is the single place where all dependencies are assembled. It produces:
+`ChatViewBuilder` (in `Sources/ChatKit/Builder/`) is the single place where all dependencies are assembled. It produces:
 - `ChatCollectionView<ChatItem>` + `RendererChain` via `buildChatView()`
 - `SenderChain` via `buildSenderChain(subject:)`
 

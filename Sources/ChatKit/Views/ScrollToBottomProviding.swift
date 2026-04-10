@@ -4,7 +4,7 @@ import UIKit
 ///
 /// Any `UIView` that conforms to this protocol can replace the built-in
 /// `ScrollToBottomView`. ChatKit owns the lifecycle — it creates the view
-/// via the factory closure in `ScrollToBottomConfiguration`, adds it as a
+/// via the builder closure in `ScrollToBottomConfiguration`, adds it as a
 /// subview, and drives `unreadCount` and visibility. The view is responsible
 /// for its own intrinsic size and internal layout.
 ///
@@ -73,7 +73,7 @@ public struct ScrollToBottomPosition: Equatable, Sendable {
 
 // MARK: - Configuration
 
-/// Bundles the scroll-to-bottom view factory and its position.
+/// Bundles the scroll-to-bottom view builder closure and its position.
 ///
 /// Pass a custom configuration to `ChatViewBuilder.scrollToBottom(_:)` or
 /// directly to `ChatCollectionView` to change the button's appearance
@@ -85,7 +85,7 @@ public struct ScrollToBottomPosition: Equatable, Sendable {
 ///     position: ScrollToBottomPosition(alignment: .leading),
 ///     viewFactory: { MyCustomScrollButton() }
 /// )
-/// let factory = ChatViewBuilder.standard()
+/// let builder = ChatViewBuilder.standard()
 ///     .scrollToBottom(config)
 /// ```
 public struct ScrollToBottomConfiguration {
