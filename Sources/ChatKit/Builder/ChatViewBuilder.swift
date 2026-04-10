@@ -45,12 +45,19 @@ public final class ChatViewBuilder {
     /// Exposed so custom plugins can match the built-in appearance.
     public let bubbleConfig: BubbleConfiguration
 
+    /// The reaction configuration controlling inline pill display,
+    /// quick-reaction emojis, and visibility thresholds.
+    /// Exposed so custom plugins can match the built-in behaviour.
+    public let reactionConfig: ReactionConfiguration
+
     public init(errorRouter: ChatKitErrorRouter = ChatKitErrorRouter(),
                 imageLoader: ImageLoading = DefaultImageLoader(),
-                bubbleConfig: BubbleConfiguration = .default) {
+                bubbleConfig: BubbleConfiguration = .default,
+                reactionConfig: ReactionConfiguration = .default) {
         self.errorRouter = errorRouter
         self.imageLoader = imageLoader
         self.bubbleConfig = bubbleConfig
+        self.reactionConfig = reactionConfig
     }
 
     // MARK: - Standard Builder
@@ -66,9 +73,11 @@ public final class ChatViewBuilder {
     /// 6. DateSeparatorPlugin       (display-only, no sender)
     /// 7. TypingIndicatorPlugin     (display-only, no sender)
     public static func standard(
-        bubbleConfig: BubbleConfiguration = .default
+        bubbleConfig: BubbleConfiguration = .default,
+        reactionConfig: ReactionConfiguration = .default
     ) -> ChatViewBuilder {
-        let builder = ChatViewBuilder(bubbleConfig: bubbleConfig)
+        let builder = ChatViewBuilder(bubbleConfig: bubbleConfig,
+                                      reactionConfig: reactionConfig)
         let loader = builder.imageLoader
         let config = builder.bubbleConfig
         let router = builder.errorRouter
@@ -253,13 +262,26 @@ public final class ChatViewBuilder {
         }
         chain.registerAll(in: chatView.collectionView)
 
-        // Wire body events from BodyRendererAdapters → chatView publishers
+        // Wire body events and reactions from BodyRendererAdapters → chatView publishers
+        let rxConfig = reactionConfig
         for renderer in renderers {
             if let adapter = renderer as? BodyRendererAdapter {
+                adapter.reactionConfig = rxConfig
+
                 adapter.onBodyEvent = { [weak chatView] event in
                     switch event {
                     case .quoteTapped(let originalMessage):
                         chatView?.publishQuoteTapped(originalMessage)
+                    }
+                }
+
+                if rxConfig.isEnabled {
+                    adapter.onReactionTapped = { [weak chatView] message, emoji in
+                        chatView?.publishReactionTapped(message: message, emoji: emoji)
+                    }
+
+                    adapter.onAddReactionTapped = { [weak chatView] message in
+                        chatView?.publishAddReactionTapped(message: message)
                     }
                 }
             }

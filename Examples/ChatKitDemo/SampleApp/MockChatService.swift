@@ -126,6 +126,38 @@ final class MockChatService: ChatServiceProtocol {
             }
         }
 
+        // Sprinkle reactions onto some messages so the UI shows pills on load.
+        let alice = ChatMessage.Sender.other(name: "Alice")
+        let bob = ChatMessage.Sender.other(name: "Bob")
+
+        for i in stride(from: messages.count - 1, through: 0, by: -4) {
+            guard case .message(let msg) = messages[i] else { continue }
+
+            var reactions: [Reaction] = msg.reactions
+            switch i % 12 {
+            case 0:
+                reactions.append(Reaction(emoji: "👍", sender: alice))
+                reactions.append(Reaction(emoji: "👍", sender: bob))
+                reactions.append(Reaction(emoji: "❤️", sender: alice))
+            case 4:
+                reactions.append(Reaction(emoji: "😂", sender: bob))
+            case 8:
+                reactions.append(Reaction(emoji: "❤️", sender: alice))
+                reactions.append(Reaction(emoji: "😮", sender: bob))
+                reactions.append(Reaction(emoji: "👍", sender: .me))
+                reactions.append(Reaction(emoji: "🙏", sender: alice))
+            default:
+                reactions.append(Reaction(emoji: "👍", sender: alice))
+            }
+
+            let updated = ChatMessage(
+                id: msg.id, text: msg.text, imageSource: msg.imageSource,
+                sender: msg.sender, timestamp: msg.timestamp, isRead: msg.isRead,
+                replyingTo: msg.replyingTo, forwardedFrom: msg.forwardedFrom,
+                reactions: reactions)
+            messages[i] = .message(updated)
+        }
+
         allMessages = messages
         oldestDeliveredIndex = max(0, allMessages.count - pageSize)
     }
@@ -163,6 +195,30 @@ final class MockChatService: ChatServiceProtocol {
 
     func unsend(_ item: ChatItem) {
         updateSubject.send(.remove(items: [item]))
+    }
+
+    // MARK: - Reactions
+
+    /// Toggles the current user's reaction on a message.
+    ///
+    /// If the user already reacted with this emoji, the reaction is removed.
+    /// Otherwise a new reaction is added. The updated message is published
+    /// via `.update` so the cell reconfigures in place.
+    func toggleReaction(emoji: String, on message: ChatMessage) {
+        let hasExisting = message.reactions.contains {
+            $0.emoji == emoji && $0.sender == .me
+        }
+
+        let updated: ChatMessage
+        if hasExisting {
+            updated = message.removingReaction(emoji: emoji, from: .me)
+        } else {
+            updated = message.addingReaction(Reaction(emoji: emoji, sender: .me))
+        }
+
+        updateDeliveredMessage(from: message, to: updated)
+        updateSubject.send(.update(items: [.message(updated)])
+        )
     }
 
     // MARK: - Typing Indicator
@@ -206,7 +262,87 @@ final class MockChatService: ChatServiceProtocol {
             self?.hideTypingIndicator()
             let msg = ChatMessage.text(text, from: sender, isRead: false)
             self?.lastReceivedMessage = msg
+            self?.deliveredMessages.append(msg)
             self?.updateSubject.send(.append(items: [.message(msg)], scrollToBottom: false))
+        }
+    }
+
+    // MARK: - Simulated Remote Reactions
+
+    private var remoteReactionTimer: Timer?
+
+    /// Messages that have been delivered to the UI (initial page + appended).
+    /// Kept in sync so we can pick a random one for remote reactions.
+    private var deliveredMessages: [ChatMessage] = []
+
+    /// Tracks active remote reactions so they can be removed later.
+    private struct PendingReactionRemoval {
+        let message: ChatMessage
+        let emoji: String
+        let sender: ChatMessage.Sender
+    }
+
+    func startRemoteReactions() {
+        // Populate deliveredMessages from the initial page.
+        let startIndex = oldestDeliveredIndex
+        for item in allMessages[startIndex...] {
+            if case .message(let msg) = item {
+                deliveredMessages.append(msg)
+            }
+        }
+        scheduleNextRemoteReaction()
+    }
+
+    func stopRemoteReactions() {
+        remoteReactionTimer?.invalidate()
+        remoteReactionTimer = nil
+    }
+
+    /// Called when we append new messages so remote reactions can target them.
+    func trackDeliveredMessage(_ message: ChatMessage) {
+        deliveredMessages.append(message)
+    }
+
+    private func scheduleNextRemoteReaction() {
+        let delay = Double.random(in: 4.0...8.0)
+        remoteReactionTimer = Timer.scheduledTimer(
+            withTimeInterval: delay, repeats: false
+        ) { [weak self] _ in
+            self?.performRemoteReaction()
+            self?.scheduleNextRemoteReaction()
+        }
+    }
+
+    private func performRemoteReaction() {
+        // Pick a random recent message (last 15) to react to.
+        let recentMessages = deliveredMessages.suffix(15)
+        guard let targetMessage = recentMessages.randomElement() else { return }
+
+        let reactor = contacts.randomElement()?.sender ?? .other(name: "Alice")
+        let emojis = ["👍", "❤️", "😂", "😮", "🔥", "👏", "🙌", "💯"]
+        let emoji = emojis.randomElement() ?? "👍"
+
+        // Add the reaction.
+        let withReaction = targetMessage.addingReaction(
+            Reaction(emoji: emoji, sender: reactor)
+        )
+        updateDeliveredMessage(from: targetMessage, to: withReaction)
+        updateSubject.send(.update(items: [.message(withReaction)]))
+
+        // Remove it after a few seconds.
+        let removalDelay = Double.random(in: 3.0...6.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + removalDelay) { [weak self] in
+            let reverted = withReaction.removingReaction(emoji: emoji, from: reactor)
+            self?.updateDeliveredMessage(from: withReaction, to: reverted)
+            self?.updateSubject.send(.update(items: [.message(reverted)]))
+        }
+    }
+
+    /// Replaces a message in the deliveredMessages array so subsequent
+    /// reactions reference the latest version (with correct reaction list).
+    private func updateDeliveredMessage(from old: ChatMessage, to new: ChatMessage) {
+        if let index = deliveredMessages.firstIndex(where: { $0.id == old.id }) {
+            deliveredMessages[index] = new
         }
     }
 
@@ -269,10 +405,12 @@ final class MockChatService: ChatServiceProtocol {
                 let symbol = self?.sampleImages.randomElement() ?? "photo"
                 let msg = ChatMessage.symbol(symbol, from: sender, isRead: false)
                 self?.lastReceivedMessage = msg
+                self?.deliveredMessages.append(msg)
                 self?.updateSubject.send(.append(items: [.message(msg)], scrollToBottom: false))
             } else {
                 let msg = ChatMessage.text(text, from: sender, isRead: false)
                 self?.lastReceivedMessage = msg
+                self?.deliveredMessages.append(msg)
                 self?.updateSubject.send(.append(items: [.message(msg)], scrollToBottom: false))
             }
         }

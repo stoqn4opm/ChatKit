@@ -92,6 +92,25 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
     }
     private let _quoteTappedSubject = PassthroughSubject<ChatMessage, Never>()
 
+    // MARK: - Reactive Outputs — Reactions
+
+    /// Fires when the user taps an existing reaction pill on a message.
+    /// The tuple contains the message and the emoji that was tapped.
+    /// Use this to toggle the user's own reaction (add if not present, remove if present).
+    public var reactionTapped: AnyPublisher<(message: ChatMessage, emoji: String), Never> {
+        _reactionTappedSubject
+            .map { (message: $0.0, emoji: $0.1) }
+            .eraseToAnyPublisher()
+    }
+    private let _reactionTappedSubject = PassthroughSubject<(ChatMessage, String), Never>()
+
+    /// Fires when the user taps the "+" add-reaction button on a message.
+    /// Present a `QuickReactionBar` or your own emoji picker in response.
+    public var addReactionTapped: AnyPublisher<ChatMessage, Never> {
+        _addReactionTappedSubject.eraseToAnyPublisher()
+    }
+    private let _addReactionTappedSubject = PassthroughSubject<ChatMessage, Never>()
+
     // MARK: - Reactive Outputs — Visibility
 
     /// Fires when an item's cell scrolls **into** the visible area.
@@ -163,12 +182,27 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
         _quoteTappedSubject.send(originalMessage)
     }
 
+    /// Called by the adapter when a reaction pill is tapped.
+    func publishReactionTapped(message: ChatMessage, emoji: String) {
+        _reactionTappedSubject.send((message, emoji))
+    }
+
+    /// Called by the adapter when the add-reaction button is tapped.
+    func publishAddReactionTapped(message: ChatMessage) {
+        _addReactionTappedSubject.send(message)
+    }
+
     // MARK: - Internal State
 
     private var hasMorePages: Bool = true
     private var isLoadingOlderMessages: Bool = false
     private var currentItems: [Item] = []
     private var cancellables = Set<AnyCancellable>()
+
+    /// Stores the location of the last touch-down event so that
+    /// `didSelectItemAt` can hit-test against the bubble (the
+    /// `panGestureRecognizer.location` trick returns stale coordinates).
+    private var lastTouchLocation: CGPoint?
 
     /// When set, the view will try to scroll to this item after every data update.
     /// Cleared once the item is found and scrolled to.
@@ -254,6 +288,15 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
         case .update(let items):
             updateItems(items)
         }
+    }
+
+    // MARK: - Touch Tracking
+
+    /// Capture every touch-down so `didSelectItemAt` can use the real
+    /// tap location for bubble hit-testing.
+    public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        lastTouchLocation = point
+        return super.hitTest(point, with: event)
     }
 
     // MARK: - Setup
@@ -376,6 +419,13 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
         return currentItems[index]
     }
 
+    /// Returns the index path for the given item, or `nil` if it is not
+    /// currently loaded.
+    public func indexPath(for item: Item) -> IndexPath? {
+        guard let index = currentItems.firstIndex(of: item) else { return nil }
+        return IndexPath(item: index, section: 0)
+    }
+
     /// Replaces all items and scrolls to the bottom.
     public func replaceAllItems(_ items: [Item], hasMorePages: Bool, scrollToBottom: Bool = true) {
         self.currentItems = items
@@ -474,10 +524,15 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
     }
 
     /// Updates existing items in-place by reconfiguring their cells.
-    /// Items are matched by identity (Hashable). The cell provider re-runs
-    /// for each updated item, so any changed properties are reflected.
+    ///
+    /// Items are matched by identity (Hashable — id-based for
+    /// `ChatMessage`). A **fresh** snapshot is built from the updated
+    /// `currentItems` array so that the diffable data source's internal
+    /// store contains the new data. `reconfigureItems` then triggers
+    /// the cell provider, which receives the updated item and
+    /// reconfigures the cell in-place.
     public func updateItems(_ items: [Item]) {
-        // Update the local cache
+        // 1. Replace matching entries in our local cache.
         let updatedSet = Set(items)
         for (index, existing) in currentItems.enumerated() {
             if let replacement = updatedSet.first(where: { $0 == existing }) {
@@ -485,9 +540,14 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
             }
         }
 
-        var snapshot = dataSource.snapshot()
-        // reconfigureItems is iOS 15+ — re-invokes the cell provider without
-        // deleting/inserting, so it's smooth and preserves cell state.
+        // 2. Build a fresh snapshot so the data source stores the
+        //    *updated* items (not the stale originals).
+        var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
+        snapshot.appendSections([.main])
+        snapshot.appendItems(currentItems, toSection: .main)
+
+        // 3. Mark the changed items for reconfiguration so the cell
+        //    provider re-runs with the new data.
         let validItems = items.filter { snapshot.itemIdentifiers.contains($0) }
         guard !validItems.isEmpty else { return }
         snapshot.reconfigureItems(validItems)
@@ -638,10 +698,13 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
 
         // If the cell provides a bubble view, only fire the selection
         // when the tap landed inside the bubble — not on the avatar,
-        // meta label, or empty padding around it.
+        // meta label, reaction pills, or empty padding around it.
         if let cell = collectionView.cellForItem(at: indexPath),
            let bubbleCell = cell as? BubbleProviding {
-            let tapPoint = collectionView.panGestureRecognizer.location(in: cell)
+            // Convert the stored touch location (in self's coordinate
+            // space) to the cell's coordinate space for hit-testing.
+            let tapInSelf = lastTouchLocation ?? .zero
+            let tapPoint = self.convert(tapInSelf, to: cell)
             let bubbleFrame = bubbleCell.contextMenuTargetView.frame
             guard bubbleFrame.contains(tapPoint) else { return }
         }

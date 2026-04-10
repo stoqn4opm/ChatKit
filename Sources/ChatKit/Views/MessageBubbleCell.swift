@@ -4,9 +4,10 @@ import UIKit
 /// `MessageBodyRenderer` system.
 ///
 /// This cell provides the shared "chrome" — bubble background, avatar,
-/// timestamp, read receipts, and incoming/outgoing layout switching. The
-/// message-specific content lives in a **body view** created by the body
-/// renderer and embedded in the cell's body container via `installBodyView(_:)`.
+/// timestamp, read receipts, reaction pills, and incoming/outgoing layout
+/// switching. The message-specific content lives in a **body view** created
+/// by the body renderer and embedded in the cell's body container via
+/// `installBodyView(_:)`.
 ///
 /// `MessageBubbleCell` is registered multiple times with different reuse
 /// identifiers (one per body type) so that body views are never swapped
@@ -17,6 +18,7 @@ import UIKit
 /// ```
 /// contentView
 /// ├── avatarView (30×30, bottom-aligned with bubble)
+/// ├── reactionPillsView (centred on top edge of bubble, optional)
 /// ├── bubbleView (rounded, colored)
 /// │   └── bodyContainer
 /// │       └── bodyView (installed by adapter, fills container)
@@ -56,6 +58,22 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
         return label
     }()
 
+    // MARK: - Reactions
+
+    private let reactionPillsView: ReactionPillsView = {
+        let view = ReactionPillsView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        return view
+    }()
+
+    /// Called when the user taps an existing reaction pill.
+    /// Parameters: (emoji string, the message).
+    var onReactionTapped: ((String) -> Void)?
+
+    /// Called when the user taps the "+" add-reaction button.
+    var onAddReactionTapped: (() -> Void)?
+
     // MARK: - Body
 
     /// The body view installed by the adapter. Nil until `installBodyView` is called.
@@ -80,6 +98,14 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
 
     private var maxBubbleWidthConstraint: NSLayoutConstraint?
 
+    /// Extra top padding when reactions straddle the top edge of the bubble.
+    private var bubbleTopNormalConstraint: NSLayoutConstraint?
+    private var bubbleTopReactionsConstraint: NSLayoutConstraint?
+
+    /// Horizontal alignment of reactions: leading for outgoing, trailing for incoming.
+    private var reactionsLeadingConstraints: [NSLayoutConstraint] = []
+    private var reactionsTrailingConstraints: [NSLayoutConstraint] = []
+
     // MARK: - Date formatter (reused)
 
     private static let timeFormatter: DateFormatter = {
@@ -103,12 +129,22 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
         contentView.addSubview(avatarView)
         contentView.addSubview(bubbleView)
         bubbleView.addSubview(bodyContainer)
+        contentView.addSubview(reactionPillsView)
         contentView.addSubview(metaLabel)
 
-        // Max bubble width — default 75%, can be updated via updateMaxBubbleWidth
+        // Max bubble width — default 75%
         let maxWidth = bubbleView.widthAnchor.constraint(
             lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.75)
         maxBubbleWidthConstraint = maxWidth
+
+        // Bubble top constraint variants: extra padding when reactions
+        // straddle the top edge so they aren't clipped by the cell above.
+        let bubbleTopNormal = bubbleView.topAnchor.constraint(
+            equalTo: contentView.topAnchor, constant: 2)
+        let bubbleTopReactions = bubbleView.topAnchor.constraint(
+            equalTo: contentView.topAnchor, constant: 16)
+        bubbleTopNormalConstraint = bubbleTopNormal
+        bubbleTopReactionsConstraint = bubbleTopReactions
 
         NSLayoutConstraint.activate([
             // Avatar size
@@ -116,8 +152,8 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
             avatarView.heightAnchor.constraint(equalToConstant: 30),
             avatarView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor),
 
-            // Bubble vertical
-            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
+            // Bubble vertical (default: normal top)
+            bubbleTopNormal,
             maxWidth,
 
             // Body fills bubble
@@ -126,10 +162,30 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
             bodyContainer.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor),
             bodyContainer.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor),
 
-            // Meta label below bubble
+            // Reaction pills centred on the top edge of the bubble
+            reactionPillsView.centerYAnchor.constraint(
+                equalTo: bubbleView.topAnchor),
+
+            // Meta label always below bubble
             metaLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 2),
             metaLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
         ])
+
+        // Reaction horizontal alignment variants
+        // Outgoing → leading-aligned (pills hug left of bubble)
+        reactionsLeadingConstraints = [
+            reactionPillsView.leadingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor, constant: 8),
+            reactionPillsView.trailingAnchor.constraint(
+                lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
+        ]
+        // Incoming → trailing-aligned (pills hug right of bubble)
+        reactionsTrailingConstraints = [
+            reactionPillsView.trailingAnchor.constraint(
+                equalTo: bubbleView.trailingAnchor, constant: -8),
+            reactionPillsView.leadingAnchor.constraint(
+                greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
+        ]
 
         // --- Four layout variants ---
 
@@ -198,12 +254,13 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
 
     // MARK: - Configure
 
-    /// Configures the cell's chrome (avatar, meta, colors, alignment).
+    /// Configures the cell's chrome (avatar, meta, colors, alignment, reactions).
     ///
     /// The body view is configured separately by the body renderer — this
     /// method only handles the shared bubble frame.
     func configure(with message: ChatMessage,
-                   avatarVisibility: BubbleConfiguration.AvatarVisibility) {
+                   avatarVisibility: BubbleConfiguration.AvatarVisibility,
+                   reactionConfig: ReactionConfiguration = .default) {
         let isOutgoing = message.sender.isMe
 
         // Determine avatar visibility
@@ -248,6 +305,40 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
         } else {
             metaLabel.text = time
         }
+
+        // Reactions — skip entirely when the reaction system is disabled
+        let reactionsEnabled = reactionConfig.isEnabled
+        let groups = reactionsEnabled ? message.reactionGroups : []
+        let hasReactions = !groups.isEmpty
+        let effectiveShowAdd = reactionsEnabled && reactionConfig.showAddButton
+
+        reactionPillsView.configure(
+            groups: groups,
+            maxVisible: reactionConfig.maxVisibleReactions,
+            currentSender: .me,
+            showAdd: effectiveShowAdd)
+
+        // Wire reaction callbacks
+        let onReaction = onReactionTapped
+        let onAdd = onAddReactionTapped
+        reactionPillsView.onReactionTapped = { emoji in onReaction?(emoji) }
+        reactionPillsView.onAddTapped = { onAdd?() }
+
+        // Determine whether pills are visible
+        let showPills = hasReactions || effectiveShowAdd
+        reactionPillsView.isHidden = !showPills
+
+        // Toggle horizontal alignment: outgoing → leading, incoming → trailing
+        NSLayoutConstraint.deactivate(
+            reactionsLeadingConstraints + reactionsTrailingConstraints)
+        if showPills {
+            NSLayoutConstraint.activate(
+                isOutgoing ? reactionsLeadingConstraints : reactionsTrailingConstraints)
+        }
+
+        // Extra bubble top padding when pills straddle the top edge
+        bubbleTopNormalConstraint?.isActive = !showPills
+        bubbleTopReactionsConstraint?.isActive = showPills
     }
 
     // MARK: - Reuse
@@ -258,6 +349,13 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
             outgoingWithAvatarConstraints + outgoingNoAvatarConstraints
             + incomingWithAvatarConstraints + incomingNoAvatarConstraints)
         avatarView.isHidden = true
+        reactionPillsView.reset()
+        NSLayoutConstraint.deactivate(
+            reactionsLeadingConstraints + reactionsTrailingConstraints)
+        bubbleTopReactionsConstraint?.isActive = false
+        bubbleTopNormalConstraint?.isActive = true
+        onReactionTapped = nil
+        onAddReactionTapped = nil
         onPrepareBodyForReuse?()
     }
 }

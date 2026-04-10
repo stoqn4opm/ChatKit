@@ -5,7 +5,8 @@ import UIKit
 ///
 /// The adapter dequeues a `MessageBubbleCell`, installs the body view on
 /// first use, and delegates body configuration to the wrapped renderer.
-/// Chrome (avatar, timestamp, colours) is configured by the cell itself.
+/// Chrome (avatar, timestamp, reactions, colours) is configured by the
+/// cell itself.
 ///
 /// This class is an internal implementation detail — consumers work with
 /// `MessageBodyRenderer` and `MessageTypePlugin` and never reference this
@@ -18,12 +19,23 @@ final class BodyRendererAdapter: MessageRenderer {
     /// Bubble configuration driving avatar visibility and max width.
     let bubbleConfig: BubbleConfiguration
 
+    /// Reaction configuration driving inline pill display.
+    var reactionConfig: ReactionConfiguration = .default
+
     /// Cell reuse identifier — unique per body type.
     private let reuseIdentifier: String
 
     /// Called when a body view emits an event (e.g. quote tap).
     /// Wired by `ChatViewBuilder` after the renderer chain is built.
     var onBodyEvent: ((MessageBodyEvent) -> Void)?
+
+    /// Called when the user taps an existing reaction pill.
+    /// Parameters: (message, emoji). Wired by the builder.
+    var onReactionTapped: ((ChatMessage, String) -> Void)?
+
+    /// Called when the user taps the "+" add-reaction button.
+    /// Parameter: message. Wired by the builder.
+    var onAddReactionTapped: ((ChatMessage) -> Void)?
 
     init(bodyRenderer: MessageBodyRenderer, bubbleConfig: BubbleConfiguration) {
         self.bodyRenderer = bodyRenderer
@@ -63,9 +75,17 @@ final class BodyRendererAdapter: MessageRenderer {
 
         guard case .message(let message) = item else { return cell }
 
-        // Configure shared chrome
+        // Wire reaction callbacks BEFORE configure() so that
+        // ReactionPillsView captures live closures, not nil.
+        let reactionHandler = onReactionTapped
+        let addHandler = onAddReactionTapped
+        cell.onReactionTapped = { emoji in reactionHandler?(message, emoji) }
+        cell.onAddReactionTapped = { addHandler?(message) }
+
+        // Configure shared chrome (avatar, meta, reactions)
         cell.configure(with: message,
-                       avatarVisibility: bubbleConfig.avatarVisibility)
+                       avatarVisibility: bubbleConfig.avatarVisibility,
+                       reactionConfig: reactionConfig)
 
         // Configure body content
         let eventHandler = onBodyEvent
