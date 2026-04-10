@@ -1,6 +1,6 @@
 # ChatKit
 
-A reusable, content-agnostic UIKit chat component for iOS. ChatKit provides a production-ready `UICollectionView`-based chat interface with pagination, read receipts, context menus, scroll-to-message, and a plugin system for custom message types — all driven by Combine and built on `NSDiffableDataSourceSnapshot`.
+A reusable, content-agnostic UIKit chat component for iOS. ChatKit provides a production-ready `UICollectionView`-based chat interface with pagination, read receipts, emoji reactions, context menus, scroll-to-message, and a plugin system for custom message types — all driven by Combine and built on `NSDiffableDataSourceSnapshot`.
 
 ## Features
 
@@ -8,7 +8,8 @@ A reusable, content-agnostic UIKit chat component for iOS. ChatKit provides a pr
 - **DiffableDataSource** for smooth, animated data updates
 - **Pagination** — scroll near the top to load older messages with preserved scroll position
 - **Scroll-to-message** — programmatic scrolling with deferred pagination support and highlight flash
-- **Combine publishers** for every lifecycle event (visibility, selection, pagination, unread count, quote taps)
+- **Emoji reactions** — tap to toggle, quick-reaction bar, full emoji keyboard, configurable or fully disableable
+- **Combine publishers** for every lifecycle event (visibility, selection, pagination, unread count, quote taps, reactions)
 - **Context menus** scoped to the message bubble (not the full cell)
 - **Scroll-to-bottom button** with unread badge, fully customizable
 - **Plugin system** — register/unregister message types with a single call
@@ -86,7 +87,7 @@ ChatKit is built around a few core concepts:
 
 **ChatViewBuilder** is the composition root. It assembles renderers, senders, error routing, bubble configuration, and the chat view itself. All dependencies flow through constructors — no global state.
 
-**MessageBubbleCell** is the unified bubble cell. All message types share this single cell class, which provides the chrome (avatar, timestamp, bubble background, alignment). Message-specific content is a **body view** created by a `MessageBodyRenderer` and embedded in the bubble.
+**MessageBubbleCell** is the unified bubble cell. All message types share this single cell class, which provides the chrome (avatar, timestamp, bubble background, reaction pills, alignment). Message-specific content is a **body view** created by a `MessageBodyRenderer` and embedded in the bubble.
 
 **MessageBodyRenderer** defines how a message type renders its content as a plain `UIView`. The `BodyRendererAdapter` wraps it into the `MessageRenderer` interface so it plugs into the existing chain.
 
@@ -96,6 +97,8 @@ ChatKit is built around a few core concepts:
 
 **BubbleConfiguration** controls avatar visibility (incoming-only, outgoing-only, both, none) and max bubble width. Pass it to `ChatViewBuilder.standard(bubbleConfig:)`.
 
+**ReactionConfiguration** controls the emoji reaction system — enable/disable toggle, max visible pills, quick-reaction emoji set, and add-button visibility. Pass it to `ChatViewBuilder.standard(reactionConfig:)` or use `.disabled` to turn reactions off entirely.
+
 **ChatUpdate&lt;Item&gt;** is the reactive data contract — an enum with cases for `.initial`, `.append`, `.prepend`, `.remove`, and `.update`.
 
 ## Repository Structure
@@ -104,14 +107,14 @@ ChatKit is built around a few core concepts:
 ChatKit/
 ├── Package.swift
 ├── Sources/ChatKit/          # The framework
-│   ├── Models/               # ChatMessage, ChatItem, ImageSource
+│   ├── Models/               # ChatMessage, ChatItem, ImageSource, Reaction
 │   ├── Rendering/            # MessageRenderer, MessageBodyRenderer, RendererChain, BodyRendererAdapter
 │   ├── Sending/              # MessageSender protocol, SenderChain
 │   ├── BuiltIn/              # Built-in plugins (Text, Image, Symbol, Reply, Forwarded, DateSeparator, TypingIndicator)
 │   ├── ImageLoading/         # ImageLoading/ImageCaching protocols + defaults
 │   ├── Builder/              # ChatViewBuilder (composition root)
 │   ├── ErrorHandling/        # ChatKitError, ChatKitErrorRouter
-│   ├── Views/                # MessageBubbleCell, BubbleConfiguration, AvatarView, ScrollToBottomView
+│   ├── Views/                # MessageBubbleCell, BubbleConfiguration, ReactionPillsView, QuickReactionBar, AvatarView, ScrollToBottomView
 │   └── Utilities/            # ReadReceiptScheduler
 ├── Tests/ChatKitTests/       # Unit tests
 ├── Examples/ChatKitDemo/     # Example iOS app
@@ -168,6 +171,51 @@ Or replace a built-in type:
 builder
     .unregister(TextMessagePlugin.self)
     .register(RichTextMessagePlugin(bubbleConfig: builder.bubbleConfig))
+```
+
+## Emoji Reactions
+
+Reactions are enabled by default. Toggle or customize them via `ReactionConfiguration`:
+
+```swift
+// Default: reactions enabled with 👍 ❤️ 😂 😮 😢 🙏 quick bar
+let builder = ChatViewBuilder.standard()
+
+// Disable reactions entirely
+let builder = ChatViewBuilder.standard(reactionConfig: .disabled)
+
+// Customize
+let builder = ChatViewBuilder.standard(
+    reactionConfig: ReactionConfiguration(
+        isEnabled: true,
+        maxVisibleReactions: 5,
+        quickReactions: ["👍", "❤️", "🔥", "🎉"],
+        showAddButton: true
+    )
+)
+```
+
+Subscribe to reaction events:
+
+```swift
+chatView.reactionTapped
+    .sink { message, emoji in
+        service.toggleReaction(emoji: emoji, on: message)
+    }
+    .store(in: &cancellables)
+
+chatView.addReactionTapped
+    .sink { message in
+        showQuickReactionBar(for: message)
+    }
+    .store(in: &cancellables)
+```
+
+Update reactions on a message by publishing a `.update` with the modified `ChatMessage`:
+
+```swift
+let updated = message.addingReaction(Reaction(emoji: "👍", sender: .me))
+updateSubject.send(.update(items: [.message(updated)]))
 ```
 
 ## License
