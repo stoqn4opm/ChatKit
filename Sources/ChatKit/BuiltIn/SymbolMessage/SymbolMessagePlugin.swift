@@ -1,15 +1,17 @@
 import Foundation
 
-/// Bundles everything ChatKit needs for symbol messages.
+/// Bundles everything ChatKit needs for SF Symbol messages.
 public struct SymbolMessagePlugin: MessageTypePlugin {
     public let renderer: MessageRenderer
     public let sender: MessageSender? = SymbolMessageSender()
 
-    public init(errorRouter: ErrorRouting) {
-        self.renderer = SymbolMessageRenderer(errorRouter: errorRouter)
+    public init(bubbleConfig: BubbleConfiguration = .default) {
+        let bodyRenderer = SymbolMessageRenderer()
+        self.renderer = BodyRendererAdapter(
+            bodyRenderer: bodyRenderer, bubbleConfig: bubbleConfig)
     }
 
     public init() {
-        self.init(errorRouter: ChatKitErrorRouter())
+        self.init(bubbleConfig: .default)
     }
 }

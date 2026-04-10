@@ -5,12 +5,14 @@ public struct TextMessagePlugin: MessageTypePlugin {
     public let renderer: MessageRenderer
     public let sender: MessageSender? = TextMessageSender()
 
-    public init(errorRouter: ErrorRouting) {
-        self.renderer = TextMessageRenderer(errorRouter: errorRouter)
+    public init(bubbleConfig: BubbleConfiguration = .default) {
+        let bodyRenderer = TextMessageRenderer()
+        self.renderer = BodyRendererAdapter(
+            bodyRenderer: bodyRenderer, bubbleConfig: bubbleConfig)
     }
 
-    /// Convenience for `unregister(_:)` probing. Uses a no-op error router.
+    /// Convenience for `unregister(_:)` probing.
     public init() {
-        self.init(errorRouter: ChatKitErrorRouter())
+        self.init(bubbleConfig: .default)
     }
 }

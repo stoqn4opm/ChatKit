@@ -14,11 +14,13 @@ import Combine
 /// // Use all defaults:
 /// let builder = ChatViewBuilder.standard()
 ///
-/// // Extend with a custom type — one call registers everything:
-/// builder.register(AudioMessagePlugin(errorRouter: builder.errorRouter))
+/// // Custom bubble configuration:
+/// let builder = ChatViewBuilder.standard(
+///     bubbleConfig: BubbleConfiguration(avatarVisibility: .both)
+/// )
 ///
-/// // Or insert at the front of the chain so it's checked first:
-/// builder.registerFirst(AudioMessagePlugin(errorRouter: builder.errorRouter))
+/// // Extend with a custom type — one call registers everything:
+/// builder.register(AudioMessagePlugin(bubbleConfig: builder.bubbleConfig))
 ///
 /// // Build:
 /// let (chatView, rendererChain) = builder.buildChatView()
@@ -39,10 +41,16 @@ public final class ChatViewBuilder {
     /// Exposed so custom plugins can use the same instance.
     public let imageLoader: ImageLoading
 
+    /// The bubble configuration used by body-renderer-based plugins.
+    /// Exposed so custom plugins can match the built-in appearance.
+    public let bubbleConfig: BubbleConfiguration
+
     public init(errorRouter: ChatKitErrorRouter = ChatKitErrorRouter(),
-                imageLoader: ImageLoading = DefaultImageLoader()) {
+                imageLoader: ImageLoading = DefaultImageLoader(),
+                bubbleConfig: BubbleConfiguration = .default) {
         self.errorRouter = errorRouter
         self.imageLoader = imageLoader
+        self.bubbleConfig = bubbleConfig
     }
 
     // MARK: - Standard Builder
@@ -57,16 +65,20 @@ public final class ChatViewBuilder {
     /// 5. TextMessagePlugin
     /// 6. DateSeparatorPlugin       (display-only, no sender)
     /// 7. TypingIndicatorPlugin     (display-only, no sender)
-    public static func standard() -> ChatViewBuilder {
-        let builder = ChatViewBuilder()
-        let router = builder.errorRouter
+    public static func standard(
+        bubbleConfig: BubbleConfiguration = .default
+    ) -> ChatViewBuilder {
+        let builder = ChatViewBuilder(bubbleConfig: bubbleConfig)
         let loader = builder.imageLoader
+        let config = builder.bubbleConfig
+        let router = builder.errorRouter
+
         // Most specific first — generic last
-        builder.register(ReplyMessagePlugin(errorRouter: router))
-        builder.register(ForwardedMessagePlugin(errorRouter: router))
-        builder.register(ImageMessagePlugin(errorRouter: router, imageLoader: loader))
-        builder.register(SymbolMessagePlugin(errorRouter: router))
-        builder.register(TextMessagePlugin(errorRouter: router))
+        builder.register(ReplyMessagePlugin(bubbleConfig: config))
+        builder.register(ForwardedMessagePlugin(bubbleConfig: config))
+        builder.register(ImageMessagePlugin(imageLoader: loader, bubbleConfig: config))
+        builder.register(SymbolMessagePlugin(bubbleConfig: config))
+        builder.register(TextMessagePlugin(bubbleConfig: config))
         builder.register(DateSeparatorPlugin(errorRouter: router))
         builder.register(TypingIndicatorPlugin(errorRouter: router))
         return builder
@@ -110,7 +122,7 @@ public final class ChatViewBuilder {
     /// ```swift
     /// builder
     ///     .unregister(TextMessagePlugin.self)
-    ///     .register(MyCustomTextMessagePlugin(errorRouter: builder.errorRouter))
+    ///     .register(MyCustomTextMessagePlugin(bubbleConfig: builder.bubbleConfig))
     /// ```
     @discardableResult
     public func unregister<P: MessageTypePlugin>(_ pluginType: P.Type) -> Self {
@@ -241,11 +253,14 @@ public final class ChatViewBuilder {
         }
         chain.registerAll(in: chatView.collectionView)
 
-        // Wire quote-tap callbacks from ReplyMessageRenderer → chatView.quoteTapped publisher
+        // Wire body events from BodyRendererAdapters → chatView publishers
         for renderer in renderers {
-            if let replyRenderer = renderer as? ReplyMessageRenderer {
-                replyRenderer.onQuoteTapped = { [weak chatView] originalMessage in
-                    chatView?.publishQuoteTapped(originalMessage)
+            if let adapter = renderer as? BodyRendererAdapter {
+                adapter.onBodyEvent = { [weak chatView] event in
+                    switch event {
+                    case .quoteTapped(let originalMessage):
+                        chatView?.publishQuoteTapped(originalMessage)
+                    }
                 }
             }
         }

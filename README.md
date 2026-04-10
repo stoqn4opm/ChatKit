@@ -84,11 +84,17 @@ ChatKit is built around a few core concepts:
 
 **ChatCollectionView&lt;Item&gt;** is the main UI component. It's a generic, content-agnostic view that knows nothing about message rendering. You provide a cell-provider closure (or use the builder), and it handles layout, scrolling, pagination, and all the reactive plumbing.
 
-**ChatViewBuilder** is the composition root. It assembles renderers, senders, error routing, and the chat view itself. All dependencies flow through constructors — no global state.
+**ChatViewBuilder** is the composition root. It assembles renderers, senders, error routing, bubble configuration, and the chat view itself. All dependencies flow through constructors — no global state.
+
+**MessageBubbleCell** is the unified bubble cell. All message types share this single cell class, which provides the chrome (avatar, timestamp, bubble background, alignment). Message-specific content is a **body view** created by a `MessageBodyRenderer` and embedded in the bubble.
+
+**MessageBodyRenderer** defines how a message type renders its content as a plain `UIView`. The `BodyRendererAdapter` wraps it into the `MessageRenderer` interface so it plugs into the existing chain.
 
 **MessageTypePlugin** bundles a renderer and an optional sender for a single message type. Register plugins with the builder; unregister by metatype (`builder.unregister(TextMessagePlugin.self)`).
 
 **RendererChain / SenderChain** are chain-of-responsibility dispatchers. The first renderer that `canRender` an item wins. The first sender that `canSend` an action wins.
+
+**BubbleConfiguration** controls avatar visibility (incoming-only, outgoing-only, both, none) and max bubble width. Pass it to `ChatViewBuilder.standard(bubbleConfig:)`.
 
 **ChatUpdate&lt;Item&gt;** is the reactive data contract — an enum with cases for `.initial`, `.append`, `.prepend`, `.remove`, and `.update`.
 
@@ -99,13 +105,13 @@ ChatKit/
 ├── Package.swift
 ├── Sources/ChatKit/          # The framework
 │   ├── Models/               # ChatMessage, ChatItem, ImageSource
-│   ├── Rendering/            # MessageRenderer protocol, RendererChain
+│   ├── Rendering/            # MessageRenderer, MessageBodyRenderer, RendererChain, BodyRendererAdapter
 │   ├── Sending/              # MessageSender protocol, SenderChain
 │   ├── BuiltIn/              # Built-in plugins (Text, Image, Symbol, Reply, Forwarded, DateSeparator, TypingIndicator)
 │   ├── ImageLoading/         # ImageLoading/ImageCaching protocols + defaults
 │   ├── Builder/              # ChatViewBuilder (composition root)
 │   ├── ErrorHandling/        # ChatKitError, ChatKitErrorRouter
-│   ├── Views/                # AvatarView, ScrollToBottomView
+│   ├── Views/                # MessageBubbleCell, BubbleConfiguration, AvatarView, ScrollToBottomView
 │   └── Utilities/            # ReadReceiptScheduler
 ├── Tests/ChatKitTests/       # Unit tests
 ├── Examples/ChatKitDemo/     # Example iOS app
@@ -120,15 +126,30 @@ ChatKit/
 
 ## Extending with Custom Message Types
 
-Create a plugin that bundles a renderer and sender:
+Create a body renderer, body view, and plugin:
 
 ```swift
+// 1. Body view (UIView subclass with your content)
+final class AudioBodyView: UIView { /* waveform, play button, etc. */ }
+
+// 2. Body renderer
+final class AudioBodyRenderer: MessageBodyRenderer {
+    var bodyReuseIdentifier: String { "Audio" }
+    func canRender(_ item: ChatItem) -> Bool { /* ... */ }
+    func createBodyView() -> UIView { AudioBodyView() }
+    func configureBody(_ bodyView: UIView, with message: ChatMessage,
+                       isOutgoing: Bool, eventHandler: ((MessageBodyEvent) -> Void)?) { /* ... */ }
+    func prepareBodyForReuse(_ bodyView: UIView) { /* ... */ }
+}
+
+// 3. Plugin (wraps body renderer in BodyRendererAdapter)
 struct AudioMessagePlugin: MessageTypePlugin {
     let renderer: MessageRenderer
     let sender: MessageSender?
 
-    init(errorRouter: ErrorRouting) {
-        renderer = AudioMessageRenderer(errorRouter: errorRouter)
+    init(bubbleConfig: BubbleConfiguration = .default) {
+        renderer = BodyRendererAdapter(
+            bodyRenderer: AudioBodyRenderer(), bubbleConfig: bubbleConfig)
         sender = AudioMessageSender()
     }
 }
@@ -138,7 +159,7 @@ Register it:
 
 ```swift
 let builder = ChatViewBuilder.standard()
-builder.register(AudioMessagePlugin(errorRouter: builder.errorRouter))
+builder.register(AudioMessagePlugin(bubbleConfig: builder.bubbleConfig))
 ```
 
 Or replace a built-in type:
@@ -146,7 +167,7 @@ Or replace a built-in type:
 ```swift
 builder
     .unregister(TextMessagePlugin.self)
-    .register(RichTextMessagePlugin(errorRouter: builder.errorRouter))
+    .register(RichTextMessagePlugin(bubbleConfig: builder.bubbleConfig))
 ```
 
 ## License

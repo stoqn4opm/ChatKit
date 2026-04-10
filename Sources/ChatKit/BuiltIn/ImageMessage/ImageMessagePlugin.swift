@@ -9,11 +9,13 @@ public struct ImageMessagePlugin: MessageTypePlugin {
     public let renderer: MessageRenderer
     public let sender: MessageSender? = ImageMessageSender()
 
-    public init(errorRouter: ErrorRouting, imageLoader: ImageLoading) {
-        self.renderer = ImageMessageRenderer(errorRouter: errorRouter, imageLoader: imageLoader)
+    public init(imageLoader: ImageLoading, bubbleConfig: BubbleConfiguration = .default) {
+        let bodyRenderer = ImageMessageRenderer(imageLoader: imageLoader)
+        self.renderer = BodyRendererAdapter(
+            bodyRenderer: bodyRenderer, bubbleConfig: bubbleConfig)
     }
 
     public init() {
-        self.init(errorRouter: ChatKitErrorRouter(), imageLoader: DefaultImageLoader())
+        self.init(imageLoader: DefaultImageLoader(), bubbleConfig: .default)
     }
 }

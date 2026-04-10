@@ -1,12 +1,14 @@
 import UIKit
 
 /// Renders plain text messages (no reply, no forward, no image).
-public final class TextMessageRenderer: MessageRenderer {
-    private let errorRouter: ErrorRouting
+///
+/// Returns a `TextBodyView` that is embedded in `MessageBubbleCell` via
+/// the `BodyRendererAdapter`.
+public final class TextMessageRenderer: MessageBodyRenderer {
 
-    public init(errorRouter: ErrorRouting) {
-        self.errorRouter = errorRouter
-    }
+    public var bodyReuseIdentifier: String { "Text" }
+
+    public init() {}
 
     public func canRender(_ item: ChatItem) -> Bool {
         guard case .message(let msg) = item else { return false }
@@ -16,26 +18,19 @@ public final class TextMessageRenderer: MessageRenderer {
             && msg.forwardedFrom == nil
     }
 
-    public func registerCells(in collectionView: UICollectionView) {
-        collectionView.register(TextBubbleCell.self,
-                                forCellWithReuseIdentifier: TextBubbleCell.reuseID)
+    public func createBodyView() -> UIView { TextBodyView() }
+
+    public func configureBody(_ bodyView: UIView,
+                              with message: ChatMessage,
+                              isOutgoing: Bool,
+                              eventHandler: ((MessageBodyEvent) -> Void)?) {
+        guard let body = bodyView as? TextBodyView else { return }
+        body.messageLabel.text = message.text
+        body.messageLabel.textColor = isOutgoing ? .white : .label
     }
 
-    public func render(_ item: ChatItem,
-                       in collectionView: UICollectionView,
-                       at indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(
-            withReuseIdentifier: TextBubbleCell.reuseID, for: indexPath
-        ) as? TextBubbleCell else {
-            errorRouter.route(
-                .cellDequeueFailed(renderer: "TextMessageRenderer",
-                                   reuseIdentifier: TextBubbleCell.reuseID))
-            return collectionView.dequeueReusableCell(
-                withReuseIdentifier: TextBubbleCell.reuseID, for: indexPath)
-        }
-        if case .message(let msg) = item {
-            cell.configure(with: msg)
-        }
-        return cell
+    public func prepareBodyForReuse(_ bodyView: UIView) {
+        guard let body = bodyView as? TextBodyView else { return }
+        body.messageLabel.text = nil
     }
 }

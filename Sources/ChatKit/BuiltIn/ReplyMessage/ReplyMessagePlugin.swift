@@ -5,11 +5,13 @@ public struct ReplyMessagePlugin: MessageTypePlugin {
     public let renderer: MessageRenderer
     public let sender: MessageSender? = ReplyMessageSender()
 
-    public init(errorRouter: ErrorRouting) {
-        self.renderer = ReplyMessageRenderer(errorRouter: errorRouter)
+    public init(bubbleConfig: BubbleConfiguration = .default) {
+        let bodyRenderer = ReplyMessageRenderer()
+        self.renderer = BodyRendererAdapter(
+            bodyRenderer: bodyRenderer, bubbleConfig: bubbleConfig)
     }
 
     public init() {
-        self.init(errorRouter: ChatKitErrorRouter())
+        self.init(bubbleConfig: .default)
     }
 }

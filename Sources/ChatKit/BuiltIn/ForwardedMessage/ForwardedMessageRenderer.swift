@@ -1,38 +1,32 @@
 import UIKit
 
-/// Renders forwarded messages (bubble with "Forwarded from X" header).
-public final class ForwardedMessageRenderer: MessageRenderer {
-    private let errorRouter: ErrorRouting
+/// Renders forwarded messages ("Forwarded from X" header above content).
+///
+/// Returns a `ForwardedBodyView` embedded in `MessageBubbleCell` via
+/// the `BodyRendererAdapter`.
+public final class ForwardedMessageRenderer: MessageBodyRenderer {
 
-    public init(errorRouter: ErrorRouting) {
-        self.errorRouter = errorRouter
-    }
+    public var bodyReuseIdentifier: String { "Forwarded" }
+
+    public init() {}
 
     public func canRender(_ item: ChatItem) -> Bool {
         guard case .message(let msg) = item else { return false }
         return msg.forwardedFrom != nil
     }
 
-    public func registerCells(in collectionView: UICollectionView) {
-        collectionView.register(ForwardedBubbleCell.self,
-                                forCellWithReuseIdentifier: ForwardedBubbleCell.reuseID)
+    public func createBodyView() -> UIView { ForwardedBodyView() }
+
+    public func configureBody(_ bodyView: UIView,
+                              with message: ChatMessage,
+                              isOutgoing: Bool,
+                              eventHandler: ((MessageBodyEvent) -> Void)?) {
+        guard let body = bodyView as? ForwardedBodyView else { return }
+        body.configure(with: message, isOutgoing: isOutgoing)
     }
 
-    public func render(_ item: ChatItem,
-                       in collectionView: UICollectionView,
-                       at indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(
-            withReuseIdentifier: ForwardedBubbleCell.reuseID, for: indexPath
-        ) as? ForwardedBubbleCell else {
-            errorRouter.route(
-                .cellDequeueFailed(renderer: "ForwardedMessageRenderer",
-                                   reuseIdentifier: ForwardedBubbleCell.reuseID))
-            return collectionView.dequeueReusableCell(
-                withReuseIdentifier: ForwardedBubbleCell.reuseID, for: indexPath)
-        }
-        if case .message(let msg) = item {
-            cell.configure(with: msg)
-        }
-        return cell
+    public func prepareBodyForReuse(_ bodyView: UIView) {
+        guard let body = bodyView as? ForwardedBodyView else { return }
+        body.reset()
     }
 }

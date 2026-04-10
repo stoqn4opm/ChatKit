@@ -1,43 +1,38 @@
 import UIKit
 
-/// Renders reply messages (bubble with quoted original above the reply text).
-public final class ReplyMessageRenderer: MessageRenderer {
-    private let errorRouter: ErrorRouting
+/// Renders reply messages (quoted original above the reply text).
+///
+/// Returns a `ReplyBodyView` embedded in `MessageBubbleCell` via
+/// the `BodyRendererAdapter`. Quote-tap events are forwarded through
+/// `MessageBodyEvent.quoteTapped`.
+public final class ReplyMessageRenderer: MessageBodyRenderer {
 
-    /// Injected by the builder after constructing the chat view.
-    /// Fires when the user taps the quoted-message block.
-    var onQuoteTapped: ((ChatMessage) -> Void)?
+    public var bodyReuseIdentifier: String { "Reply" }
 
-    public init(errorRouter: ErrorRouting) {
-        self.errorRouter = errorRouter
-    }
+    public init() {}
 
     public func canRender(_ item: ChatItem) -> Bool {
         guard case .message(let msg) = item else { return false }
         return msg.replyingTo != nil
     }
 
-    public func registerCells(in collectionView: UICollectionView) {
-        collectionView.register(ReplyBubbleCell.self,
-                                forCellWithReuseIdentifier: ReplyBubbleCell.reuseID)
+    public func createBodyView() -> UIView { ReplyBodyView() }
+
+    public func configureBody(_ bodyView: UIView,
+                              with message: ChatMessage,
+                              isOutgoing: Bool,
+                              eventHandler: ((MessageBodyEvent) -> Void)?) {
+        guard let body = bodyView as? ReplyBodyView else { return }
+        body.configure(with: message, isOutgoing: isOutgoing)
+
+        // Wire quote tap → event handler
+        body.onQuoteTapped = { quotedMessage in
+            eventHandler?(.quoteTapped(quotedMessage))
+        }
     }
 
-    public func render(_ item: ChatItem,
-                       in collectionView: UICollectionView,
-                       at indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(
-            withReuseIdentifier: ReplyBubbleCell.reuseID, for: indexPath
-        ) as? ReplyBubbleCell else {
-            errorRouter.route(
-                .cellDequeueFailed(renderer: "ReplyMessageRenderer",
-                                   reuseIdentifier: ReplyBubbleCell.reuseID))
-            return collectionView.dequeueReusableCell(
-                withReuseIdentifier: ReplyBubbleCell.reuseID, for: indexPath)
-        }
-        if case .message(let msg) = item {
-            cell.onQuoteTapped = onQuoteTapped
-            cell.configure(with: msg)
-        }
-        return cell
+    public func prepareBodyForReuse(_ bodyView: UIView) {
+        guard let body = bodyView as? ReplyBodyView else { return }
+        body.reset()
     }
 }

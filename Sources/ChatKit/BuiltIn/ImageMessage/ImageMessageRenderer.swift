@@ -4,14 +4,18 @@ import UIKit
 ///
 /// This renderer handles `.local` and `.remote` image sources.
 /// SF Symbol images are handled by `SymbolMessageRenderer` instead.
-public final class ImageMessageRenderer: MessageRenderer {
+///
+/// Returns an `ImageBodyView` embedded in `MessageBubbleCell` via
+/// the `BodyRendererAdapter`.
+public final class ImageMessageRenderer: NSObject, MessageBodyRenderer {
 
-    private let errorRouter: ErrorRouting
+    public var bodyReuseIdentifier: String { "Image" }
+
     private let imageLoader: ImageLoading
 
-    public init(errorRouter: ErrorRouting, imageLoader: ImageLoading) {
-        self.errorRouter = errorRouter
+    public init(imageLoader: ImageLoading) {
         self.imageLoader = imageLoader
+        super.init()
     }
 
     public func canRender(_ item: ChatItem) -> Bool {
@@ -25,27 +29,56 @@ public final class ImageMessageRenderer: MessageRenderer {
         }
     }
 
-    public func registerCells(in collectionView: UICollectionView) {
-        collectionView.register(ImageBubbleCell.self,
-                                forCellWithReuseIdentifier: ImageBubbleCell.reuseID)
+    public func createBodyView() -> UIView { ImageBodyView() }
+
+    public func configureBody(_ bodyView: UIView,
+                              with message: ChatMessage,
+                              isOutgoing: Bool,
+                              eventHandler: ((MessageBodyEvent) -> Void)?) {
+        guard let body = bodyView as? ImageBodyView else { return }
+
+        if let source = message.imageSource {
+            body.loadingIndicator.startAnimating()
+            body.imageContainer.addObserver(
+                self, forKeyPath: "image", options: [.new], context: nil)
+            body.isObservingImage = true
+            imageLoader.loadImage(from: source, into: body.imageContainer)
+        }
     }
 
-    public func render(_ item: ChatItem,
-                       in collectionView: UICollectionView,
-                       at indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(
-            withReuseIdentifier: ImageBubbleCell.reuseID, for: indexPath
-        ) as? ImageBubbleCell else {
-            errorRouter.route(
-                .cellDequeueFailed(renderer: "ImageMessageRenderer",
-                                   reuseIdentifier: ImageBubbleCell.reuseID))
-            return collectionView.dequeueReusableCell(
-                withReuseIdentifier: ImageBubbleCell.reuseID, for: indexPath)
+    public func prepareBodyForReuse(_ bodyView: UIView) {
+        guard let body = bodyView as? ImageBodyView else { return }
+        imageLoader.cancelLoad(for: body.imageContainer)
+        body.loadingIndicator.stopAnimating()
+        if body.isObservingImage {
+            body.imageContainer.removeObserver(self, forKeyPath: "image")
+            body.isObservingImage = false
         }
-        cell.imageLoader = imageLoader
-        if case .message(let msg) = item {
-            cell.configure(with: msg)
+        body.imageContainer.image = nil
+    }
+
+    // MARK: - KVO for loading indicator
+
+    public override func observeValue(
+        forKeyPath keyPath: String?,
+        of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?,
+        context: UnsafeMutableRawPointer?
+    ) {
+        guard keyPath == "image",
+              let imageView = object as? UIImageView,
+              imageView.image != nil else { return }
+
+        // Walk up to find the ImageBodyView
+        var current: UIView? = imageView.superview
+        while let view = current {
+            if let body = view as? ImageBodyView, body.isObservingImage {
+                body.loadingIndicator.stopAnimating()
+                imageView.removeObserver(self, forKeyPath: "image")
+                body.isObservingImage = false
+                break
+            }
+            current = view.superview
         }
-        return cell
     }
 }
