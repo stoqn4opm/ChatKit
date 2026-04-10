@@ -23,7 +23,7 @@ import Combine
 /// builder.register(AudioMessagePlugin(bubbleConfig: builder.bubbleConfig))
 ///
 /// // Build:
-/// let (chatView, rendererChain) = builder.buildChatView()
+/// let chatView = builder.buildChatView()
 /// let senderChain = builder.buildSenderChain(subject: service.updateSubject)
 /// ```
 public final class ChatViewBuilder {
@@ -239,22 +239,18 @@ public final class ChatViewBuilder {
 
     // MARK: - Build
 
-    /// Builds a `RendererChain` from the currently registered renderers.
-    public func buildRendererChain() -> RendererChain {
-        RendererChain(renderers: renderers, errorRouter: errorRouter)
-    }
-
     /// Builds a `SenderChain` from the currently registered senders.
     public func buildSenderChain(subject: PassthroughSubject<ChatUpdate<ChatItem>, Never>) -> SenderChain {
         SenderChain(senders: senders, subject: subject, errorRouter: errorRouter)
     }
 
-    /// Builds a fully wired `ChatCollectionView` with the renderer chain already
-    /// set as the cell provider. Also returns the chain so you can use it elsewhere.
+    /// Builds a fully wired `ChatCollectionView` with the renderer chain
+    /// already set as the cell provider and all event publishers connected.
     ///
-    /// - Returns: A tuple of the chat view and its renderer chain.
-    public func buildChatView() -> (view: ChatCollectionView<ChatItem>, renderers: RendererChain) {
-        let chain = buildRendererChain()
+    /// The renderer chain is created, registered, and captured internally —
+    /// consumers don't need direct access to it.
+    public func buildChatView() -> ChatCollectionView<ChatItem> {
+        let chain = RendererChain(renderers: renderers, errorRouter: errorRouter)
         let chatView = ChatCollectionView<ChatItem>(
             scrollToBottomConfig: scrollToBottomConfig
         ) { collectionView, indexPath, item in
@@ -287,6 +283,6 @@ public final class ChatViewBuilder {
             }
         }
 
-        return (chatView, chain)
+        return chatView
     }
 }

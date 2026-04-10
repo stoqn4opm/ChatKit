@@ -51,8 +51,7 @@ final class ChatViewController: UIViewController {
 
         // 1. Build everything via the builder
         let builder = ChatViewBuilder.standard()
-        let (view, renderers) = builder.buildChatView()
-        chatView = view
+        chatView = builder.buildChatView()
         senderChain = builder.buildSenderChain(subject: chatService.updateSubject)
 
         // 2. Add to view hierarchy

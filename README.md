@@ -64,8 +64,8 @@ import ChatKit
 // 1. Create a builder with all built-in message types
 let builder = ChatViewBuilder.standard()
 
-// 2. Build the chat view and renderer chain
-let (chatView, renderers) = builder.buildChatView()
+// 2. Build the chat view (renderers are wired internally)
+let chatView = builder.buildChatView()
 
 // 3. Build the sender chain (needs your service's update subject)
 let senderChain = builder.buildSenderChain(subject: chatService.updateSubject)

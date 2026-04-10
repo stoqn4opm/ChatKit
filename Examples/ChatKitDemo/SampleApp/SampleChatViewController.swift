@@ -10,9 +10,6 @@ final class SampleChatViewController: UIViewController {
     private var chatView: ChatCollectionView<ChatItem>!
     private let inputBar = ChatInputBar()
 
-    /// Builder-produced renderer chain.
-    private var rendererChain: RendererChain!
-
     /// Builder-produced sender chain.
     private var senderChain: SenderChain!
 
@@ -31,10 +28,7 @@ final class SampleChatViewController: UIViewController {
         //   builder.prependRenderer(AudioMessageRenderer())
         //   builder.prependSender(AudioMessageSender())
 
-        let built = builder.buildChatView()
-        chatView = built.view
-        rendererChain = built.renderers
-
+        chatView = builder.buildChatView()
         senderChain = builder.buildSenderChain(subject: chatService.updateSubject)
 
         setupChatView()
