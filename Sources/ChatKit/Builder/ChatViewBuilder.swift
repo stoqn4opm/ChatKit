@@ -32,6 +32,7 @@ public final class ChatViewBuilder {
     private var senders: [MessageSender] = []
     private var pluginEntries: [(type: Any.Type, renderer: MessageRenderer, sender: MessageSender?)] = []
     private var scrollToBottomConfig: ScrollToBottomConfiguration? = .default
+    private var _highlightColor: UIColor?
 
     /// The error router that all ChatKit components share.
     /// Exposed so custom plugins can use the same instance.
@@ -216,6 +217,16 @@ public final class ChatViewBuilder {
         return self
     }
 
+    // MARK: - Highlight Color
+
+    /// Sets the color used to flash a cell after a scroll-to-message navigation
+    /// (e.g. tapping a replied-to bubble). Defaults to `systemYellow` at 30% opacity.
+    @discardableResult
+    public func highlightColor(_ color: UIColor) -> Self {
+        _highlightColor = color
+        return self
+    }
+
     // MARK: - Error Handling
 
     /// Sets a custom error handler for all ChatKit errors.
@@ -257,6 +268,10 @@ public final class ChatViewBuilder {
             chain.cell(for: item, in: collectionView, at: indexPath)
         }
         chain.registerAll(in: chatView.collectionView)
+
+        if let color = _highlightColor {
+            chatView.setHighlightColor(color)
+        }
 
         // Wire body events and reactions from BodyRendererAdapters → chatView publishers
         let rxConfig = reactionConfig

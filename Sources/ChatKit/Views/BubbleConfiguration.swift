@@ -1,4 +1,4 @@
-import CoreGraphics
+import UIKit
 
 /// Controls the visual chrome of `MessageBubbleCell`.
 ///
@@ -36,12 +36,24 @@ public struct BubbleConfiguration: Equatable, Sendable {
     /// constraints (e.g. image bubbles) may be narrower than this.
     public var maxBubbleWidthFraction: CGFloat
 
+    /// Background colour for outgoing (sent) message bubbles.
+    /// Default is `.systemBlue`.
+    public var sentBubbleColor: UIColor
+
+    /// Background colour for incoming (received) message bubbles.
+    /// Default is `.secondarySystemBackground`.
+    public var receivedBubbleColor: UIColor
+
     public init(
         avatarVisibility: AvatarVisibility = .incomingOnly,
-        maxBubbleWidthFraction: CGFloat = 0.75
+        maxBubbleWidthFraction: CGFloat = 0.75,
+        sentBubbleColor: UIColor = .systemBlue,
+        receivedBubbleColor: UIColor = .secondarySystemBackground
     ) {
         self.avatarVisibility = avatarVisibility
         self.maxBubbleWidthFraction = maxBubbleWidthFraction
+        self.sentBubbleColor = sentBubbleColor
+        self.receivedBubbleColor = receivedBubbleColor
     }
 
     /// Incoming-only avatars, 75% max bubble width.

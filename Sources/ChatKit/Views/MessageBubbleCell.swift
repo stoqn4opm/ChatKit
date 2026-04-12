@@ -259,13 +259,13 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
     /// The body view is configured separately by the body renderer — this
     /// method only handles the shared bubble frame.
     func configure(with message: ChatMessage,
-                   avatarVisibility: BubbleConfiguration.AvatarVisibility,
+                   bubbleConfig: BubbleConfiguration,
                    reactionConfig: ReactionConfiguration = .default) {
         let isOutgoing = message.sender.isMe
 
         // Determine avatar visibility
         let showAvatar: Bool
-        switch avatarVisibility {
+        switch bubbleConfig.avatarVisibility {
         case .incomingOnly: showAvatar = !isOutgoing
         case .outgoingOnly: showAvatar = isOutgoing
         case .both:         showAvatar = true
@@ -287,7 +287,14 @@ public final class MessageBubbleCell: UICollectionViewCell, BubbleProviding {
 
         // Bubble colour
         bubbleView.backgroundColor = isOutgoing
-            ? .systemBlue : .secondarySystemBackground
+            ? bubbleConfig.sentBubbleColor : bubbleConfig.receivedBubbleColor
+
+        // Update max bubble width from configuration
+        maxBubbleWidthConstraint?.isActive = false
+        maxBubbleWidthConstraint = bubbleView.widthAnchor.constraint(
+            lessThanOrEqualTo: contentView.widthAnchor,
+            multiplier: bubbleConfig.maxBubbleWidthFraction)
+        maxBubbleWidthConstraint?.isActive = true
 
         // Avatar
         avatarView.isHidden = !showAvatar

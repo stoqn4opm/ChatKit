@@ -11,7 +11,7 @@ import UIKit
 /// This class is an internal implementation detail — consumers work with
 /// `MessageBodyRenderer` and `MessageTypePlugin` and never reference this
 /// class directly.
-final class BodyRendererAdapter: MessageRenderer {
+public final class BodyRendererAdapter: MessageRenderer {
 
     /// The wrapped body renderer.
     let bodyRenderer: MessageBodyRenderer
@@ -37,7 +37,7 @@ final class BodyRendererAdapter: MessageRenderer {
     /// Parameter: message. Wired by the builder.
     var onAddReactionTapped: ((ChatMessage) -> Void)?
 
-    init(bodyRenderer: MessageBodyRenderer, bubbleConfig: BubbleConfiguration) {
+    public init(bodyRenderer: MessageBodyRenderer, bubbleConfig: BubbleConfiguration) {
         self.bodyRenderer = bodyRenderer
         self.bubbleConfig = bubbleConfig
         self.reuseIdentifier = "MessageBubbleCell_\(bodyRenderer.bodyReuseIdentifier)"
@@ -45,17 +45,17 @@ final class BodyRendererAdapter: MessageRenderer {
 
     // MARK: - MessageRenderer
 
-    func canRender(_ item: ChatItem) -> Bool {
+    public func canRender(_ item: ChatItem) -> Bool {
         bodyRenderer.canRender(item)
     }
 
-    func registerCells(in collectionView: UICollectionView) {
+    public func registerCells(in collectionView: UICollectionView) {
         collectionView.register(
             MessageBubbleCell.self,
             forCellWithReuseIdentifier: reuseIdentifier)
     }
 
-    func render(_ item: ChatItem,
+    public func render(_ item: ChatItem,
                 in collectionView: UICollectionView,
                 at indexPath: IndexPath) -> UICollectionViewCell {
         guard let cell = collectionView.dequeueReusableCell(
@@ -84,7 +84,7 @@ final class BodyRendererAdapter: MessageRenderer {
 
         // Configure shared chrome (avatar, meta, reactions)
         cell.configure(with: message,
-                       avatarVisibility: bubbleConfig.avatarVisibility,
+                       bubbleConfig: bubbleConfig,
                        reactionConfig: reactionConfig)
 
         // Configure body content

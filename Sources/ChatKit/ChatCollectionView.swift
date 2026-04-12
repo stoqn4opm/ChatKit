@@ -227,6 +227,7 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
     private let topSpinner = UIActivityIndicatorView(style: .medium)
 
     /// The scroll-to-bottom button, created from the configuration's view builder closure.
+    private var scrollToHighlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.3)
     private var scrollToBottomButton: (any ScrollToBottomProviding)?
 
     // MARK: - Init
@@ -424,6 +425,12 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
     public func indexPath(for item: Item) -> IndexPath? {
         guard let index = currentItems.firstIndex(of: item) else { return nil }
         return IndexPath(item: index, section: 0)
+    }
+
+    /// Sets the color used to briefly flash a cell after a scroll-to-message navigation.
+    /// Defaults to `systemYellow` at 30% opacity.
+    public func setHighlightColor(_ color: UIColor) {
+        scrollToHighlightColor = color
     }
 
     /// Replaces all items and scrolls to the bottom.
@@ -643,7 +650,7 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
         }
 
         let highlightView = UIView(frame: targetView.bounds)
-        highlightView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.3)
+        highlightView.backgroundColor = scrollToHighlightColor
         highlightView.layer.cornerRadius = targetView.layer.cornerRadius
         highlightView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         targetView.addSubview(highlightView)
@@ -775,12 +782,13 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
               let cell = collectionView.cellForItem(at: indexPath) as? BubbleProviding else {
             return nil
         }
+        let target = cell.contextMenuTargetView
         let params = UIPreviewParameters()
-        params.backgroundColor = .clear
+        params.backgroundColor = target.backgroundColor ?? .clear
         params.visiblePath = UIBezierPath(
-            roundedRect: cell.contextMenuTargetView.bounds,
+            roundedRect: target.bounds,
             cornerRadius: 16
         )
-        return UITargetedPreview(view: cell.contextMenuTargetView, parameters: params)
+        return UITargetedPreview(view: target, parameters: params)
     }
 }
