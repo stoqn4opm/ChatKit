@@ -3,9 +3,11 @@ import UIKit
 /// Renders the animated typing indicator (bouncing dots).
 public final class TypingIndicatorRenderer: MessageRenderer {
     private let errorRouter: ErrorRouting
+    private let showsAvatar: Bool
 
-    public init(errorRouter: ErrorRouting) {
+    public init(errorRouter: ErrorRouting, showsAvatar: Bool = true) {
         self.errorRouter = errorRouter
+        self.showsAvatar = showsAvatar
     }
 
     public func canRender(_ item: ChatItem) -> Bool {
@@ -30,7 +32,7 @@ public final class TypingIndicatorRenderer: MessageRenderer {
             return collectionView.dequeueReusableCell(
                 withReuseIdentifier: TypingIndicatorCell.reuseID, for: indexPath)
         }
-        cell.configure(name: "Alice", color: .systemPurple)
+        cell.configure(name: "Alice", color: .systemPurple, showsAvatar: showsAvatar)
         return cell
     }
 }

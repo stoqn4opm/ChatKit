@@ -22,6 +22,14 @@ public final class TypingIndicatorCell: UICollectionViewCell {
         return avatar
     }()
 
+    /// Bubble leading constraint when the avatar is visible (anchored to the
+    /// avatar's trailing edge).
+    private var bubbleLeadingWithAvatar: NSLayoutConstraint!
+
+    /// Bubble leading constraint when the avatar is hidden (anchored to the
+    /// content view directly, matching the standard received-bubble inset).
+    private var bubbleLeadingWithoutAvatar: NSLayoutConstraint!
+
     private static func makeDot() -> UIView {
         let dot = UIView()
         dot.backgroundColor = .systemGray
@@ -43,13 +51,15 @@ public final class TypingIndicatorCell: UICollectionViewCell {
         stack.translatesAutoresizingMaskIntoConstraints = false
         bubbleView.addSubview(stack)
 
+        bubbleLeadingWithAvatar = bubbleView.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 6)
+        bubbleLeadingWithoutAvatar = bubbleView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
+
         NSLayoutConstraint.activate([
             avatarView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
             avatarView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor),
             avatarView.widthAnchor.constraint(equalToConstant: 30),
             avatarView.heightAnchor.constraint(equalToConstant: 30),
 
-            bubbleView.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 6),
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
             bubbleView.widthAnchor.constraint(equalToConstant: 70),
@@ -69,14 +79,23 @@ public final class TypingIndicatorCell: UICollectionViewCell {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    public func configure(name: String = "...", color: UIColor = .systemPurple) {
-        avatarView.configure(initial: String(name.prefix(1)), color: color)
+    public func configure(name: String = "...", color: UIColor = .systemPurple, showsAvatar: Bool = true) {
+        if showsAvatar {
+            avatarView.isHidden = false
+            avatarView.configure(initial: String(name.prefix(1)), color: color)
+            bubbleLeadingWithoutAvatar.isActive = false
+            bubbleLeadingWithAvatar.isActive = true
+        } else {
+            avatarView.isHidden = true
+            bubbleLeadingWithAvatar.isActive = false
+            bubbleLeadingWithoutAvatar.isActive = true
+        }
         startAnimating()
     }
 
     private func startAnimating() {
         let dots = [dot1, dot2, dot3]
-        for (i, dot) in dots.enumerated() {
+        for (index, dot) in dots.enumerated() {
             dot.layer.removeAllAnimations()
             let animation = CABasicAnimation(keyPath: "transform.translation.y")
             animation.fromValue = 0
@@ -84,7 +103,7 @@ public final class TypingIndicatorCell: UICollectionViewCell {
             animation.duration = 0.35
             animation.autoreverses = true
             animation.repeatCount = .infinity
-            animation.beginTime = CACurrentMediaTime() + Double(i) * 0.15
+            animation.beginTime = CACurrentMediaTime() + Double(index) * 0.15
             animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             dot.layer.add(animation, forKey: "bounce")
         }
