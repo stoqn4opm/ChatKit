@@ -19,5 +19,15 @@ public enum ChatUpdate<Item: Hashable & Sendable> {
     /// Update items in-place (read receipts, delivery status, edit).
     /// The items must already exist in the list (matched by identity/hash).
     /// Triggers `reconfigureItems` on iOS 15+ so the cell provider re-runs.
+    /// The cell class must stay the same — UIKit's `reconfigureItems`
+    /// requires the same reuse identifier as the existing cell.
     case update(items: [Item])
+
+    /// Replaces items with a fresh dequeue (cell class may change).
+    /// The items must already exist in the list (matched by identity/hash).
+    /// Triggers `reloadItems` on the diffable data source so the cell
+    /// provider dequeues a new cell. Use this when the item's renderer
+    /// (cell class) needs to change — e.g. a text message being unsent
+    /// and rendering as an unsent-placeholder cell.
+    case reload(items: [Item])
 }

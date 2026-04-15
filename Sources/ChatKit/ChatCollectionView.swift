@@ -288,6 +288,9 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
 
         case .update(let items):
             updateItems(items)
+
+        case .reload(let items):
+            reloadItems(items)
         }
     }
 
@@ -558,6 +561,38 @@ public final class ChatCollectionView<Item: Hashable & Sendable>: UIView,
         let validItems = items.filter { snapshot.itemIdentifiers.contains($0) }
         guard !validItems.isEmpty else { return }
         snapshot.reconfigureItems(validItems)
+        dataSource.apply(snapshot, animatingDifferences: true)
+    }
+
+    /// Reloads existing items, forcing a fresh cell dequeue.
+    ///
+    /// Unlike `updateItems`, this uses `snapshot.reloadItems` rather than
+    /// `reconfigureItems`, which lets the cell provider return a cell of a
+    /// different class than the one currently displayed for that item. Use
+    /// this when the item's renderer changes (e.g. a text message being
+    /// transformed into an unsent-placeholder). Items are matched by
+    /// identity/hash and must already exist in the list.
+    public func reloadItems(_ items: [Item]) {
+        // 1. Replace matching entries in our local cache.
+        let updatedSet = Set(items)
+        for (index, existing) in currentItems.enumerated() {
+            if let replacement = updatedSet.first(where: { $0 == existing }) {
+                currentItems[index] = replacement
+            }
+        }
+
+        // 2. Build a fresh snapshot so the data source stores the
+        //    *updated* items (not the stale originals).
+        var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
+        snapshot.appendSections([.main])
+        snapshot.appendItems(currentItems, toSection: .main)
+
+        // 3. Mark the changed items for a full reload so the cell
+        //    provider dequeues a new cell (potentially of a different
+        //    class than the existing one).
+        let validItems = items.filter { snapshot.itemIdentifiers.contains($0) }
+        guard !validItems.isEmpty else { return }
+        snapshot.reloadItems(validItems)
         dataSource.apply(snapshot, animatingDifferences: true)
     }
 
