@@ -6,9 +6,19 @@ import UIKit
 /// the `BodyRendererAdapter`.
 public final class TextMessageRenderer: MessageBodyRenderer {
 
+    // MARK: - Properties
+
     public var bodyReuseIdentifier: String { "Text" }
 
-    public init() {}
+    private let messageTextColor: UIColor?
+
+    // MARK: - Init
+
+    public init(messageTextColor: UIColor? = nil) {
+        self.messageTextColor = messageTextColor
+    }
+
+    // MARK: - MessageBodyRenderer
 
     public func canRender(_ item: ChatItem) -> Bool {
         guard case .message(let msg) = item else { return false }
@@ -26,7 +36,7 @@ public final class TextMessageRenderer: MessageBodyRenderer {
                               eventHandler: ((MessageBodyEvent) -> Void)?) {
         guard let body = bodyView as? TextBodyView else { return }
         body.messageLabel.text = message.text
-        body.messageLabel.textColor = isOutgoing ? .white : .label
+        body.messageLabel.textColor = messageTextColor ?? (isOutgoing ? .white : .label)
     }
 
     public func prepareBodyForReuse(_ bodyView: UIView) {

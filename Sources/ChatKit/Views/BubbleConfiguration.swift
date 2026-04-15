@@ -44,16 +44,24 @@ public struct BubbleConfiguration: Equatable, Sendable {
     /// Default is `.secondarySystemBackground`.
     public var receivedBubbleColor: UIColor
 
+    /// Text colour for message content inside bubbles.
+    /// When set, all body renderers use this colour for primary text
+    /// regardless of outgoing/incoming. Default is `nil`, which falls
+    /// back to `.white` for outgoing and `.label` for incoming.
+    public var messageTextColor: UIColor?
+
     public init(
         avatarVisibility: AvatarVisibility = .incomingOnly,
         maxBubbleWidthFraction: CGFloat = 0.75,
         sentBubbleColor: UIColor = .systemBlue,
-        receivedBubbleColor: UIColor = .secondarySystemBackground
+        receivedBubbleColor: UIColor = .secondarySystemBackground,
+        messageTextColor: UIColor? = nil
     ) {
         self.avatarVisibility = avatarVisibility
         self.maxBubbleWidthFraction = maxBubbleWidthFraction
         self.sentBubbleColor = sentBubbleColor
         self.receivedBubbleColor = receivedBubbleColor
+        self.messageTextColor = messageTextColor
     }
 
     /// Incoming-only avatars, 75% max bubble width.

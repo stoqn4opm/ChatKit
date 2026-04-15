@@ -6,7 +6,7 @@ public struct TextMessagePlugin: MessageTypePlugin {
     public let sender: MessageSender? = TextMessageSender()
 
     public init(bubbleConfig: BubbleConfiguration = .default) {
-        let bodyRenderer = TextMessageRenderer()
+        let bodyRenderer = TextMessageRenderer(messageTextColor: bubbleConfig.messageTextColor)
         self.renderer = BodyRendererAdapter(
             bodyRenderer: bodyRenderer, bubbleConfig: bubbleConfig)
     }

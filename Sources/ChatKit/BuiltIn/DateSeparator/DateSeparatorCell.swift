@@ -41,7 +41,9 @@ public final class DateSeparatorCell: UICollectionViewCell {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    public func configure(text: String) {
+    public func configure(text: String, textColor: UIColor? = nil, pillColor: UIColor? = nil) {
         label.text = text
+        if let textColor { label.textColor = textColor }
+        if let pillColor { pill.backgroundColor = pillColor }
     }
 }
